@@ -2,108 +2,208 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 
 export default function LoginPage() {
 
-const router = useRouter()
+  const router = useRouter()
 
-const [email,setEmail] = useState("")
-const [senha,setSenha] = useState("")
-const [erro,setErro] = useState("")
+  const [email,setEmail] = useState("")
+  const [senha,setSenha] = useState("")
+  const [erro,setErro] = useState("")
+  const [mostrarSenha,setMostrarSenha] = useState(false)
+  const [loading,setLoading] = useState(false)
 
-function login(){
+  function login(){
 
-if(email === "tophaus@orbit.com" && senha === "Orbit2025"){
+    setErro("")
+    setLoading(true)
 
-localStorage.setItem("auth","true")
+    setTimeout(()=>{
 
-router.push("/")
+      if(email === "tophaus@orbit.com" && senha === "Orbit2025"){
 
-}else{
+        localStorage.setItem("auth","true")
+        router.push("/")
 
-setErro("Email ou senha inválidos")
+      }else{
 
-}
+        setErro("Email ou senha inválidos")
+        setLoading(false)
 
-}
+      }
 
-return(
+    },600)
 
-<div style={{
-height:"100vh",
-display:"flex",
-alignItems:"center",
-justifyContent:"center",
-background:"#e5e7eb"
+  }
+
+  function handleKey(e:React.KeyboardEvent){
+
+    if(e.key === "Enter"){
+      login()
+    }
+
+  }
+
+  return(
+
+  <div style={{
+    height:"100vh",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    background:"#e5e7eb"
+  }}>
+
+  <div style={{
+    width:460,
+    background:"#000",
+    padding:60,
+    borderRadius:14,
+    color:"#fff",
+    textAlign:"center",
+    boxShadow:"0 15px 40px rgba(0,0,0,0.25)",
+    animation:"fade 0.5s ease"
+  }}>
+
+  <div style={{
+  display:"flex",
+  justifyContent:"center",
+  marginBottom:35
 }}>
-
-<div style={{
-width:380,
-background:"black",
-padding:40,
-borderRadius:12,
-color:"white",
-textAlign:"center"
-}}>
-
-<img
-src="/logo.png"
-style={{width:120,marginBottom:20}}
-/>
-
-<h2 style={{marginBottom:20}}>
-Bem-vindo ao Painel Financeiro do Top Haus
-</h2>
-
-<input
-placeholder="E-mail"
-value={email}
-onChange={(e)=>setEmail(e.target.value)}
-style={{
-width:"100%",
-padding:10,
-marginTop:10,
-borderRadius:6,
-border:"none"
-}}
-/>
-
-<input
-type="password"
-placeholder="Senha"
-value={senha}
-onChange={(e)=>setSenha(e.target.value)}
-style={{
-width:"100%",
-padding:10,
-marginTop:10,
-borderRadius:6,
-border:"none"
-}}
-/>
-
-<button
-onClick={login}
-style={{
-width:"100%",
-padding:12,
-marginTop:20,
-borderRadius:6,
-border:"none",
-background:"#e5e5e5"
-}}
->
-Entrar
-</button>
-
-<p style={{color:"red",marginTop:10}}>
-{erro}
-</p>
-
+  <Image
+    src="/logo.png"
+    alt="Logo Top Haus"
+    width={170}
+    height={170}
+  />
 </div>
 
-</div>
+ 
 
-)
+  {/* EMAIL */}
+
+  <div style={{textAlign:"left", marginBottom:16}}>
+
+    <label style={{fontSize:13, color:"#ccc"}}>E-mail</label>
+
+    <input
+      value={email}
+      onChange={(e)=>setEmail(e.target.value)}
+      placeholder="Digite seu e-mail"
+      onKeyDown={handleKey}
+      style={{
+        width:"100%",
+        padding:12,
+        marginTop:6,
+        borderRadius:6,
+        border:"1px solid #444",
+        background:"#111",
+        color:"#fff",
+        outline:"none"
+      }}
+    />
+
+  </div>
+
+  {/* SENHA */}
+
+  <div style={{textAlign:"left"}}>
+
+    <label style={{fontSize:13, color:"#ccc"}}>Senha</label>
+
+    <div style={{position:"relative"}}>
+
+      <input
+        type={mostrarSenha ? "text" : "password"}
+        value={senha}
+        onChange={(e)=>setSenha(e.target.value)}
+        placeholder="Digite sua senha"
+        onKeyDown={handleKey}
+        style={{
+          width:"100%",
+          padding:12,
+          marginTop:6,
+          borderRadius:6,
+          border:"1px solid #444",
+          background:"#111",
+          color:"#fff",
+          outline:"none"
+        }}
+      />
+
+      <button
+        type="button"
+        onClick={()=>setMostrarSenha(!mostrarSenha)}
+        style={{
+          position:"absolute",
+          right:8,
+          top:10,
+          fontSize:12,
+          background:"transparent",
+          border:"none",
+          color:"#aaa",
+          cursor:"pointer"
+        }}
+      >
+        {mostrarSenha ? "Ocultar" : "Ver"}
+      </button>
+
+    </div>
+
+  </div>
+
+  {/* BOTÃO */}
+
+  <button
+    onClick={login}
+    disabled={loading}
+    style={{
+      width:"100%",
+      padding:14,
+      marginTop:26,
+      borderRadius:8,
+      border:"none",
+      background: loading ? "#666" : "#2563eb",
+      color:"#fff",
+      fontWeight:600,
+      fontSize:15,
+      cursor:"pointer",
+      transition:"0.2s"
+    }}
+  >
+    {loading ? "Entrando..." : "Entrar"}
+  </button>
+
+  {erro && (
+    <p style={{
+      color:"#ff6b6b",
+      marginTop:14,
+      fontSize:14
+    }}>
+      {erro}
+    </p>
+  )}
+
+  </div>
+
+  <style>
+  {`
+    @keyframes fade {
+      from {
+        opacity:0;
+        transform:translateY(10px);
+      }
+      to {
+        opacity:1;
+        transform:translateY(0);
+      }
+    }
+  `}
+  </style>
+
+  </div>
+
+  )
 
 }

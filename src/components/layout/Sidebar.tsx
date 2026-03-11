@@ -224,6 +224,18 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-800">
+
+        <button
+    onClick={()=>{
+      localStorage.removeItem("auth")
+      localStorage.removeItem("auth_expira")
+      window.location.href="/login"
+    }}
+    className="w-full bg-slate-800 hover:bg-slate-700 text-white text-sm py-2 rounded-lg transition"
+  >
+    Sair do sistema
+  </button>
+  
         <p className="text-xs text-slate-500 text-center">
           © 2025 Top Haus
         </p>
