@@ -6,7 +6,7 @@ interface ModalProps {
   onFechar: () => void
   titulo: string
   children: ReactNode
-  largura?: 'sm' | 'md' | 'lg' | 'xl'
+  largura?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 }
 
 export function Modal({ aberto, onFechar, titulo, children, largura = 'md' }: ModalProps) {
@@ -17,6 +17,8 @@ export function Modal({ aberto, onFechar, titulo, children, largura = 'md' }: Mo
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
+    '2xl': 'max-w-5xl',
+    
   }
 
   return (

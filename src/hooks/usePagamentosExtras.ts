@@ -252,7 +252,7 @@ const pagamentosFiltrados = useMemo(() => {
     setErro(null)
     try {
       // Criar todos os pagamentos em paralelo
-      const promises = itensSelecionadosComValor.map(item => 
+       const promises = itensSelecionadosComValor.map(item => 
         criarPagamentoExtra({
           funcionario_id: item.funcionario.id!,
           tipo: loteTipo,
@@ -261,6 +261,7 @@ const pagamentosFiltrados = useMemo(() => {
           competencia_mes: filtroCompetenciaMes,
           competencia_ano: filtroCompetenciaAno,
           data_pagamento: loteDataPagamento || null,
+          quantidade_horas: null,
         })
       )
 

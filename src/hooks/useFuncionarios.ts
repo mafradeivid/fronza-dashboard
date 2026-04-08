@@ -66,7 +66,7 @@ export function useFuncionarios() {
         dadosCargos,
         dadosTiposDemissao,
       ] = await Promise.all([
-        listarFuncionarios(filtroStatus),
+        listarFuncionarios('todos'),
         listarEmpresas(),
         listarSetores(),
         listarCargos(),
@@ -83,7 +83,7 @@ export function useFuncionarios() {
     } finally {
       setCarregando(false)
     }
-  }, [filtroStatus])
+  }, [])
 
   useEffect(() => {
     carregar()
@@ -91,6 +91,7 @@ export function useFuncionarios() {
 
   // Funcionários filtrados
   const funcionariosFiltrados = funcionarios.filter(f => {
+    if (filtroStatus !== 'todos' && f.status !== filtroStatus) return false
     if (filtroEmpresa && f.empresa_id !== filtroEmpresa) return false
     if (filtroSetor && f.setor_id !== filtroSetor) return false
     if (filtroCargo && f.cargo_id !== filtroCargo) return false

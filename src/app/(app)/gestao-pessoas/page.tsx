@@ -7,7 +7,10 @@ import {
   CardsResumo, 
   FuncionariosPorEmpresa, 
   CardAniversarios, 
-  LinksRapidos 
+  LinksRapidos,
+  CardTurnover,
+  CardExperiencias,
+  CardAfastados,
 } from '@/components/gestao-pessoas/visao-geral'
 
 export default function GestaoVisaoGeralPage() {
@@ -17,9 +20,21 @@ export default function GestaoVisaoGeralPage() {
     totalEmpresas,
     totalAniversariosProximos,
     totalAniversariosEmpresaProximos,
+    totalAfastados,
+    totalExperiencias,
     funcionariosPorEmpresa,
     aniversariantesNascimento,
     aniversariantesEmpresa,
+    experienciasVencendo,
+    funcionariosAfastados,
+    empresas,
+    dadosTurnover,
+    turnoverEmpresa,
+    setTurnoverEmpresa,
+    turnoverMes,
+    setTurnoverMes,
+    turnoverAno,
+    setTurnoverAno,
     filtroAnivNasc,
     setFiltroAnivNasc,
     mesAnivNasc,
@@ -52,10 +67,30 @@ export default function GestaoVisaoGeralPage() {
           totalEmpresas={totalEmpresas}
           totalAniversariosProximos={totalAniversariosProximos}
           totalAniversariosEmpresaProximos={totalAniversariosEmpresaProximos}
+          totalAfastados={totalAfastados}
+          totalExperiencias={totalExperiencias}
         />
 
         {/* Funcionários por Empresa */}
         <FuncionariosPorEmpresa dados={funcionariosPorEmpresa} />
+
+        {/* Grid: Turnover + Experiências + Afastados */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <CardTurnover
+            dados={dadosTurnover}
+            empresas={empresas}
+            empresaSelecionada={turnoverEmpresa}
+            setEmpresaSelecionada={setTurnoverEmpresa}
+            mesSelecionado={turnoverMes}
+            setMesSelecionado={setTurnoverMes}
+            anoSelecionado={turnoverAno}
+            setAnoSelecionado={setTurnoverAno}
+          />
+          
+          <CardExperiencias lista={experienciasVencendo} />
+          
+          <CardAfastados lista={funcionariosAfastados} />
+        </div>
 
         {/* Grid de Aniversários */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

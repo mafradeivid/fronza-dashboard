@@ -6,7 +6,7 @@ import {
   DadosCustoPessoal,
 } from '@/types/custoPessoal'
 import { Empresa, Setor, Cargo, Funcionario } from '@/types/pessoas'
-import { calcularCustoPessoal } from '@/services/custoPessoalService'
+import { calcularCustoPessoal } from '@/services/custos'
 import { listarEmpresas, listarSetores, listarCargos, listarFuncionarios } from '@/services/pessoas'
 
 export function useCustoPessoal() {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { gerarReciboIndividual, gerarRecibosLote } from '@/services/reciboService'
+import { gerarReciboIndividual, gerarRecibosLote, EmpresaPagadora } from '@/services/reciboService'
 import { Wallet, Plus } from 'lucide-react'
 import { usePagamentosExtras } from '@/hooks/usePagamentosExtras'
 import { usePagamentoLote } from '@/hooks/usePagamentoLote'
@@ -13,7 +13,8 @@ import {
   PagamentosTable, 
   BarraSelecao,
   ModalPagamento,
-  ModalLote 
+  ModalLote,
+  ModalEmpresaRecibo,
 } from '@/components/gestao-pessoas/pagamentos-extras'
 import { formatarData, parseMoeda } from '@/utils/formatters'
 import { getLabelTipoPagamento } from '@/types/pessoas'
@@ -78,10 +79,15 @@ export default function PagamentosExtrasPage() {
   const [valorTexto, setValorTexto] = useState('')
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set())
 
+  // Estados para modal de recibo
+  const [modalReciboAberto, setModalReciboAberto] = useState(false)
+  const [reciboIndividual, setReciboIndividual] = useState<PagamentoExtra | null>(null)
+  const [recibosLote, setRecibosLote] = useState<PagamentoExtra[]>([])
+
   // Labels
   const competenciaLabel = `${MESES.find(m => m.value === filtroCompetenciaMes)?.label}/${filtroCompetenciaAno}`
 
-  // Pagamentos filtrados por busca (já vem filtrado do hook, mas busca é local)
+  // Pagamentos filtrados por busca
   const pagamentosFiltrados = useMemo(() => {
     if (!filtroBusca.trim()) return pagamentos
     const termo = filtroBusca.toLowerCase().trim()
@@ -154,19 +160,41 @@ export default function PagamentosExtrasPage() {
     }
   }
 
-  // Handlers de Impressão
-function handleImprimirRecibo(pagamento: PagamentoExtra) {
-  gerarReciboIndividual(pagamento)
-}
-
-function handleGerarRecibosLote() {
-  const pagamentosSelecionados = pagamentosFiltrados.filter(p => selecionados.has(p.id!))
-  if (pagamentosSelecionados.length === 0) {
-    setErro('Selecione pelo menos um pagamento')
-    return
+  // Handlers de Impressão - Abre modal
+  function handleImprimirRecibo(pagamento: PagamentoExtra) {
+    setReciboIndividual(pagamento)
+    setRecibosLote([])
+    setModalReciboAberto(true)
   }
-  gerarRecibosLote(pagamentosSelecionados)
-}
+
+  function handleGerarRecibosLote() {
+    const pagamentosSelecionados = pagamentosFiltrados.filter(p => selecionados.has(p.id!))
+    if (pagamentosSelecionados.length === 0) {
+      setErro('Selecione pelo menos um pagamento')
+      return
+    }
+    setReciboIndividual(null)
+    setRecibosLote(pagamentosSelecionados)
+    setModalReciboAberto(true)
+  }
+
+  function handleConfirmarRecibo(empresa: EmpresaPagadora) {
+    if (reciboIndividual) {
+      gerarReciboIndividual(reciboIndividual, empresa)
+    } else if (recibosLote.length > 0) {
+      gerarRecibosLote(recibosLote, empresa)
+      setSelecionados(new Set())
+    }
+    setModalReciboAberto(false)
+    setReciboIndividual(null)
+    setRecibosLote([])
+  }
+
+  function handleFecharModalRecibo() {
+    setModalReciboAberto(false)
+    setReciboIndividual(null)
+    setRecibosLote([])
+  }
 
   // Exportar Excel
   function handleExportar() {
@@ -189,6 +217,9 @@ function handleGerarRecibosLote() {
   if (carregando) {
     return <LoadingState mensagem="Carregando pagamentos extras..." cor="amber" />
   }
+
+  // Empresa padrão para o modal
+  const empresaPadraoRecibo = reciboIndividual?.funcionario?.empresa || null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -290,16 +321,18 @@ function handleGerarRecibosLote() {
       />
 
       {/* Modal Lote */}
-      <ModalLote
+     <ModalLote
         aberto={lote.modalAberto}
         competenciaMes={filtroCompetenciaMes}
         competenciaAno={filtroCompetenciaAno}
         tipo={lote.tipo}
         descricao={lote.descricao}
         dataPagamento={lote.dataPagamento}
+        quantidadeHoras={lote.quantidadeHoras}
         onTipoChange={lote.setTipo}
         onDescricaoChange={lote.setDescricao}
         onDataPagamentoChange={lote.setDataPagamento}
+        onQuantidadeHorasChange={lote.setQuantidadeHoras}
         filtroEmpresa={lote.filtroEmpresa}
         busca={lote.busca}
         empresas={empresas}
@@ -312,12 +345,24 @@ function handleGerarRecibosLote() {
         onSelecionarTodos={lote.selecionarTodos}
         onDeselecionarTodos={lote.deselecionarTodos}
         onAtualizarValor={lote.atualizarValor}
+        onAtualizarHoras={lote.atualizarHoras}
+        onAplicarHorasParaTodos={lote.aplicarHorasParaTodos}
         onAplicarValorTodos={lote.aplicarValorParaTodos}
-        quantidadeSelecionados={lote.itensSelecionadosComValor.length}
+                quantidadeSelecionados={lote.itensSelecionadosComValor.length}
         total={lote.total}
         salvando={lote.salvando}
         onFechar={lote.fechar}
         onSalvar={lote.salvar}
+      />
+
+      {/* Modal Empresa para Recibo */}
+      <ModalEmpresaRecibo
+        aberto={modalReciboAberto}
+        empresas={empresas}
+        empresaPadrao={empresaPadraoRecibo}
+        quantidade={reciboIndividual ? 1 : recibosLote.length}
+        onFechar={handleFecharModalRecibo}
+        onConfirmar={handleConfirmarRecibo}
       />
 
       {/* Confirmação de Exclusão */}

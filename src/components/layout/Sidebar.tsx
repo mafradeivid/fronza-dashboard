@@ -19,6 +19,8 @@ import {
   Layers,
   ClipboardList,
   UserCog,
+  Calendar,
+  Clock,
   X
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -92,6 +94,16 @@ const modulos = [
           { label: 'Encargos e Provisões', href: '/gestao-pessoas/encargos', icon: Calculator },
         ]
       },
+      {
+  id: 'ferias',
+  label: 'Férias',
+  icon: Calendar,
+  submenu: [
+    { label: 'Visão Geral', href: '/gestao-pessoas/ferias', icon: BarChart3 },
+    { label: 'Períodos e Saldos', href: '/gestao-pessoas/ferias/periodos', icon: Clock },
+    { label: 'Programação', href: '/gestao-pessoas/ferias/programacao', icon: Calendar },
+  ]
+},
     ]
   },
 ]
@@ -115,6 +127,7 @@ export function Sidebar({ menuOpen, setMenuOpen }: SidebarProps) {
         }
       })
     })
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
   const isActive = (href: string) => pathname === href

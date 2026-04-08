@@ -1,7 +1,7 @@
 'use client'
 
 import { Save } from 'lucide-react'
-import { PagamentoExtra, Funcionario, TIPOS_PAGAMENTO_EXTRA } from '@/types/pessoas'
+import { PagamentoExtra, Funcionario, TIPOS_PAGAMENTO_EXTRA, TipoPagamentoExtra } from '@/types/pessoas'
 import { Modal } from '@/components/gestao-pessoas'
 import { handleMoedaInput } from '@/utils/formatters'
 
@@ -13,6 +13,24 @@ const MESES = [
   { value: 9, label: 'Setembro' }, { value: 10, label: 'Outubro' },
   { value: 11, label: 'Novembro' }, { value: 12, label: 'Dezembro' },
 ]
+
+// Máscara para horas: 2230 -> 22:30
+function handleHorasInput(valor: string): string {
+  const numeros = valor.replace(/\D/g, '')
+  const limitado = numeros.slice(0, 4)
+  
+  if (limitado.length <= 2) {
+    return limitado
+  }
+  
+  const horas = limitado.slice(0, 2)
+  const minutos = limitado.slice(2, 4)
+  
+  const minutosNum = parseInt(minutos, 10)
+  const minutosValidos = minutosNum > 59 ? '59' : minutos
+  
+  return `${horas}:${minutosValidos}`
+}
 
 interface ModalPagamentoProps {
   aberto: boolean
@@ -38,6 +56,20 @@ export function ModalPagamento({
   onPagamentoChange,
 }: ModalPagamentoProps) {
   if (!pagamento) return null
+
+  const isHorasExtras = pagamento.tipo === 'horas_extras'
+
+  // Handler separado para mudança de tipo
+  function handleTipoChange(novoTipo: TipoPagamentoExtra) {
+    onPagamentoChange('tipo', novoTipo)
+    // Limpa quantidade_horas apenas se sair de horas_extras
+    if (novoTipo !== 'horas_extras' && pagamento?.quantidade_horas) {
+      // Usa setTimeout para garantir que a primeira mudança seja processada
+      setTimeout(() => {
+        onPagamentoChange('quantidade_horas', null)
+      }, 0)
+    }
+  }
 
   return (
     <Modal
@@ -80,7 +112,7 @@ export function ModalPagamento({
           </label>
           <select
             value={pagamento.tipo || 'outros'}
-            onChange={(e) => onPagamentoChange('tipo', e.target.value)}
+            onChange={(e) => handleTipoChange(e.target.value as TipoPagamentoExtra)}
             className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
           >
             {TIPOS_PAGAMENTO_EXTRA.map((t) => (
@@ -89,7 +121,7 @@ export function ModalPagamento({
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className={`grid gap-4 ${isHorasExtras ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {/* Valor */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -103,6 +135,23 @@ export function ModalPagamento({
               placeholder="0,00"
             />
           </div>
+
+          {/* Quantidade de Horas - Condicional */}
+          {isHorasExtras && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Qtd. Horas
+              </label>
+              <input
+                type="text"
+                value={pagamento.quantidade_horas || ''}
+                onChange={(e) => onPagamentoChange('quantidade_horas', handleHorasInput(e.target.value) || null)}
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                placeholder="00:00"
+                maxLength={5}
+              />
+            </div>
+          )}
 
           {/* Data Pagamento */}
           <div>

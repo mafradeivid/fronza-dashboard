@@ -2,8 +2,8 @@
 // MODAL DE FUNCIONÁRIO (CRIAR/EDITAR)
 // ============================================
 
-import { Save } from 'lucide-react'
-import { Funcionario, Empresa, Setor, Cargo } from '@/types/pessoas'
+import { Save, Clock } from 'lucide-react'
+import { Funcionario, Empresa, Setor, Cargo, PERIODOS_EXPERIENCIA, calcularDatasExperiencia } from '@/types/pessoas'
 import { Modal } from '@/components/gestao-pessoas'
 import { 
   handleMoedaInput,
@@ -12,6 +12,16 @@ import {
   calcularProximoAniversario,
   calcularAniversarioEmpresa
 } from '@/utils/formatters'
+
+// Máscara de CPF: 00000000000 -> 000.000.000-00
+function handleCpfInput(valor: string): string {
+  const numeros = valor.replace(/\D/g, '').slice(0, 11)
+  
+  if (numeros.length <= 3) return numeros
+  if (numeros.length <= 6) return `${numeros.slice(0, 3)}.${numeros.slice(3)}`
+  if (numeros.length <= 9) return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`
+  return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`
+}
 
 interface ModalFuncionarioProps {
   aberto: boolean
@@ -47,6 +57,11 @@ export function ModalFuncionario({
   if (!funcionario) return null
 
   const isEdicao = !!funcionario.id
+
+  // Calcular datas de experiência para preview
+  const datasExperiencia = funcionario.admissao && funcionario.periodo_experiencia
+    ? calcularDatasExperiencia(funcionario.admissao, funcionario.periodo_experiencia)
+    : null
 
   return (
     <Modal
@@ -102,6 +117,21 @@ export function ModalFuncionario({
             />
           </div>
 
+          {/* CPF */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              CPF
+            </label>
+            <input
+              type="text"
+              value={funcionario.cpf || ''}
+              onChange={(e) => onChange('cpf', handleCpfInput(e.target.value) || null)}
+              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
+              placeholder="000.000.000-00"
+              maxLength={14}
+            />
+          </div>
+
           {/* Nascimento */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -126,6 +156,40 @@ export function ModalFuncionario({
               onChange={(e) => onChange('admissao', e.target.value)}
               className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
             />
+          </div>
+
+          {/* Período de Experiência */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Período de Experiência
+              <span className="text-xs text-slate-400 ml-1">(90 dias total - CLT Art. 445)</span>
+            </label>
+            <div className="flex flex-col md:flex-row gap-3">
+              <select
+                value={funcionario.periodo_experiencia || ''}
+                onChange={(e) => onChange('periodo_experiencia', e.target.value || null)}
+                className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none bg-white"
+              >
+                <option value="">Não definido</option>
+                {PERIODOS_EXPERIENCIA.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+              
+              {/* Preview das datas */}
+              {datasExperiencia && (
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg">
+                    <Clock className="w-4 h-4" />
+                    <span>1º: {datasExperiencia.fimPrimeiroPeriodo.toLocaleDateString('pt-BR')}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg">
+                    <Clock className="w-4 h-4" />
+                    <span>2º: {datasExperiencia.fimSegundoPeriodo.toLocaleDateString('pt-BR')}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Cargo */}
@@ -225,6 +289,7 @@ export function ModalFuncionario({
 
 function InfoCalculada({ funcionario }: { funcionario: Funcionario }) {
   const aniversarioEmpresa = calcularAniversarioEmpresa(funcionario.admissao)
+  const datasExperiencia = calcularDatasExperiencia(funcionario.admissao, funcionario.periodo_experiencia)
 
   return (
     <div className="bg-slate-50 rounded-xl p-4 mt-4">
@@ -264,6 +329,35 @@ function InfoCalculada({ funcionario }: { funcionario: Funcionario }) {
           </p>
         </div>
       </div>
+      
+      {/* Status da Experiência */}
+      {datasExperiencia && datasExperiencia.periodoAtual !== 'encerrado' && (
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-medium text-slate-700">Período de Experiência</span>
+          </div>
+          <div className="flex gap-3">
+            <div className={`px-3 py-2 rounded-lg text-sm ${
+              datasExperiencia.periodoAtual === 1 
+                ? 'bg-blue-100 text-blue-700 font-medium' 
+                : 'bg-slate-100 text-slate-500'
+            }`}>
+              1º período: {datasExperiencia.diasRestantesPrimeiro > 0 
+                ? `${datasExperiencia.diasRestantesPrimeiro} dias restantes`
+                : 'Encerrado'
+              }
+            </div>
+            <div className={`px-3 py-2 rounded-lg text-sm ${
+              datasExperiencia.periodoAtual === 2 
+                ? 'bg-emerald-100 text-emerald-700 font-medium' 
+                : 'bg-slate-100 text-slate-500'
+            }`}>
+              2º período: {datasExperiencia.diasRestantesSegundo} dias restantes
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

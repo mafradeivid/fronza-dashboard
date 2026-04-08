@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Save, CheckSquare, Square } from 'lucide-react'
 import { Empresa, Funcionario, TIPOS_PAGAMENTO_EXTRA, TipoPagamentoExtra } from '@/types/pessoas'
 import { Modal } from '@/components/gestao-pessoas'
@@ -15,6 +15,31 @@ const MESES = [
   { value: 11, label: 'Novembro' }, { value: 12, label: 'Dezembro' },
 ]
 
+// Máscara para horas: 2230 -> 22:30
+function handleHorasInput(valor: string): string {
+  const numeros = valor.replace(/\D/g, '')
+  const limitado = numeros.slice(0, 4)
+  
+  if (limitado.length <= 2) {
+    return limitado
+  }
+  
+  const horas = limitado.slice(0, 2)
+  const minutos = limitado.slice(2, 4)
+  
+  const minutosNum = parseInt(minutos, 10)
+  const minutosValidos = minutosNum > 59 ? '59' : minutos
+  
+  return `${horas}:${minutosValidos}`
+}
+
+interface PagamentoLoteItem {
+  funcionario: Funcionario
+  valor: number
+  quantidadeHoras: string
+  selecionado: boolean
+}
+
 interface ModalLoteProps {
   aberto: boolean
   competenciaMes: number
@@ -24,9 +49,12 @@ interface ModalLoteProps {
   tipo: TipoPagamentoExtra
   descricao: string
   dataPagamento: string
+  quantidadeHoras: string
   onTipoChange: (tipo: TipoPagamentoExtra) => void
   onDescricaoChange: (descricao: string) => void
   onDataPagamentoChange: (data: string) => void
+  onQuantidadeHorasChange: (horas: string) => void
+  onAplicarHorasParaTodos: (horas: string) => void
   
   // Filtros
   filtroEmpresa: number | null
@@ -37,12 +65,13 @@ interface ModalLoteProps {
   
   // Funcionários e itens
   funcionariosFiltrados: Funcionario[]
-  getItem: (id: number) => { selecionado: boolean; valor: number } | undefined
+  getItem: (id: number) => PagamentoLoteItem | undefined
   getValorTexto: (id: number) => string
   onToggleSelecionar: (id: number) => void
   onSelecionarTodos: () => void
   onDeselecionarTodos: () => void
   onAtualizarValor: (id: number, valor: number, valorTexto: string) => void
+  onAtualizarHoras: (id: number, horas: string) => void
   onAplicarValorTodos: (valor: number, valorTexto: string) => void
   
   // Resumo
@@ -62,9 +91,12 @@ export function ModalLote({
   tipo,
   descricao,
   dataPagamento,
+  quantidadeHoras,
   onTipoChange,
   onDescricaoChange,
   onDataPagamentoChange,
+  onQuantidadeHorasChange,
+  onAplicarHorasParaTodos,
   filtroEmpresa,
   busca,
   empresas,
@@ -77,6 +109,7 @@ export function ModalLote({
   onSelecionarTodos,
   onDeselecionarTodos,
   onAtualizarValor,
+  onAtualizarHoras,
   onAplicarValorTodos,
   quantidadeSelecionados,
   total,
@@ -85,7 +118,9 @@ export function ModalLote({
   onSalvar,
 }: ModalLoteProps) {
   const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map())
-  const valorMassaRef = useRef<string>('')
+  const [valorMassa, setValorMassa] = useState('')
+
+  const isHorasExtras = tipo === 'horas_extras'
 
   // Navegação com TAB/Enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
@@ -119,10 +154,17 @@ export function ModalLote({
 
   // Aplicar valor em massa
   const handleAplicarMassa = () => {
-    const valor = parseMoeda(valorMassaRef.current)
+    const valor = parseMoeda(valorMassa)
     if (valor > 0) {
       const valorFormatado = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
       onAplicarValorTodos(valor, valorFormatado)
+    }
+  }
+
+  // Aplicar horas em massa
+  const handleAplicarHorasMassa = () => {
+    if (quantidadeHoras) {
+      onAplicarHorasParaTodos(quantidadeHoras)
     }
   }
 
@@ -135,7 +177,7 @@ export function ModalLote({
       aberto={aberto}
       onFechar={onFechar}
       titulo="Lançamento em Lote"
-      largura="xl"
+      largura="2xl"
     >
       <div className="p-6">
         {/* Competência */}
@@ -146,7 +188,7 @@ export function ModalLote({
         </div>
 
         {/* Configurações do Lote */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Tipo <span className="text-red-500">*</span>
@@ -174,7 +216,7 @@ export function ModalLote({
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Descrição (para todos)
             </label>
@@ -226,10 +268,8 @@ export function ModalLote({
             <div className="flex gap-2">
               <input
                 type="text"
-                onChange={(e) => {
-                  valorMassaRef.current = handleMoedaInput(e.target.value)
-                  e.target.value = valorMassaRef.current
-                }}
+                value={valorMassa}
+                onChange={(e) => setValorMassa(handleMoedaInput(e.target.value))}
                 className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                 placeholder="0,00"
               />
@@ -241,6 +281,31 @@ export function ModalLote({
               </button>
             </div>
           </div>
+
+          {/* Aplicar horas em massa - só aparece para Horas Extras */}
+          {isHorasExtras && (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Aplicar horas aos selecionados
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={quantidadeHoras}
+                  onChange={(e) => onQuantidadeHorasChange(handleHorasInput(e.target.value))}
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                  placeholder="00:00"
+                  maxLength={5}
+                />
+                <button
+                  onClick={handleAplicarHorasMassa}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                >
+                  Aplicar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Ações de Seleção */}
@@ -281,7 +346,10 @@ export function ModalLote({
                 </th>
                 <th className="text-left p-3">Funcionário</th>
                 <th className="text-left p-3">Empresa</th>
-                <th className="text-right p-3 w-[180px]">Valor (R$)</th>
+                {isHorasExtras && (
+                  <th className="text-center p-3 w-[120px]">Horas</th>
+                )}
+                <th className="text-right p-3 w-[150px]">Valor (R$)</th>
               </tr>
             </thead>
             <tbody>
@@ -311,6 +379,18 @@ export function ModalLote({
                     <td className="p-3 text-slate-600 text-sm">
                       {funcionario.empresa?.razao_social}
                     </td>
+                    {isHorasExtras && (
+                      <td className="p-3">
+                        <input
+                          type="text"
+                          value={item.quantidadeHoras || ''}
+                          onChange={(e) => onAtualizarHoras(funcionario.id!, handleHorasInput(e.target.value))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-center tabular-nums"
+                          placeholder="00:00"
+                          maxLength={5}
+                        />
+                      </td>
+                    )}
                     <td className="p-3">
                       <input
                         ref={(el) => {

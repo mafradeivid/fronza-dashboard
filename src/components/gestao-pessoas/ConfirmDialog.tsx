@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
   onCancelar: () => void
   labelConfirmar?: string
   labelCancelar?: string
-  tipo?: 'perigo' | 'aviso' | 'info'
+  tipo?: 'perigo' | 'aviso' | 'info' | 'sucesso'
 }
 
 export function ConfirmDialog({
@@ -35,6 +35,11 @@ export function ConfirmDialog({
     info: {
       icone: 'bg-blue-100 text-blue-600',
       botao: 'bg-blue-600 hover:bg-blue-700',
+    },
+
+    sucesso: {
+       icone: 'bg-emerald-100 text-emerald-600',
+       botao: 'bg-emerald-600 hover:bg-emerald-700',
     },
   }
 

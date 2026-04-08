@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Save, Search, X, Filter, Cake, Gift } from 'lucide-react'
+import { Users, Plus, Pencil, Trash2, Save, Search, X, Filter, Cake, Gift, UserX, UserCheck } from 'lucide-react'
 import { useFuncionarios } from '@/hooks/useFuncionarios'
-import { Funcionario } from '@/types/pessoas'
+import { Funcionario, StatusFuncionario } from '@/types/pessoas'
+import { BadgeStatus, ModalDemissao } from '@/components/gestao-pessoas/funcionarios'
 import { PageHeader, Modal, EmptyState, LoadingState, ConfirmDialog } from '@/components/gestao-pessoas'
 import { 
   formatarMoeda, 
@@ -16,12 +17,31 @@ import {
   calcularAniversarioEmpresa
 } from '@/utils/formatters'
 
+// Máscara de CPF
+function handleCpfInput(valor: string): string {
+  const numeros = valor.replace(/\D/g, '').slice(0, 11)
+  if (numeros.length <= 3) return numeros
+  if (numeros.length <= 6) return `${numeros.slice(0, 3)}.${numeros.slice(3)}`
+  if (numeros.length <= 9) return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6)}`
+  return `${numeros.slice(0, 3)}.${numeros.slice(3, 6)}.${numeros.slice(6, 9)}-${numeros.slice(9)}`
+}
+
+type FiltroStatusType = StatusFuncionario | 'todos'
+
+const OPCOES_STATUS: { value: FiltroStatusType; label: string }[] = [
+  { value: 'ativo', label: 'Ativos' },
+  { value: 'inativo', label: 'Inativos' },
+  { value: 'afastado', label: 'Afastados' },
+  { value: 'todos', label: 'Todos' },
+]
+
 export default function FuncionariosPage() {
   const {
     funcionarios,
     empresas,
     setores,
     cargos,
+    tiposDemissao,
     carregando,
     erro,
     modalAberto,
@@ -38,18 +58,30 @@ export default function FuncionariosPage() {
     filtroEmpresa,
     filtroSetor,
     filtroCargo,
+    filtroStatus,
     filtroBusca,
     setFiltroEmpresa,
     setFiltroSetor,
     setFiltroCargo,
+    setFiltroStatus,
     setFiltroBusca,
     limparFiltros,
+    temFiltrosAtivos,
     // Estatísticas
     totalFuncionarios,
     totalSalarios,
+    contagemPorStatus,
+    // Demissão
+    modalDemissaoAberto,
+    funcionarioDemitindo,
+    abrirModalDemissao,
+    fecharModalDemissao,
+    confirmarDemissao,
+    reativar,
   } = useFuncionarios()
 
   const [confirmExcluir, setConfirmExcluir] = useState<number | null>(null)
+  const [confirmReativar, setConfirmReativar] = useState<number | null>(null)
   const [salarioTexto, setSalarioTexto] = useState('')
   const [outrosProventosTexto, setOutrosProventosTexto] = useState('')
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
@@ -103,13 +135,20 @@ export default function FuncionariosPage() {
     }
   }
 
+  async function handleConfirmarReativacao() {
+    if (confirmReativar) {
+      const sucesso = await reativar(confirmReativar)
+      if (sucesso) {
+        setConfirmReativar(null)
+      }
+    }
+  }
+
   function handleChange(campo: keyof Funcionario, valor: string | number | null) {
     if (funcionarioEditando) {
       setFuncionarioEditando({ ...funcionarioEditando, [campo]: valor })
     }
   }
-
-  const temFiltrosAtivos = filtroEmpresa || filtroSetor || filtroCargo || filtroBusca
 
   if (carregando) {
     return <LoadingState mensagem="Carregando funcionários..." cor="violet" />
@@ -143,6 +182,11 @@ export default function FuncionariosPage() {
           <div className="bg-gradient-to-br from-violet-500 to-violet-600 rounded-2xl p-5 text-white">
             <p className="text-violet-100 text-sm font-medium">Total de Funcionários</p>
             <p className="text-3xl font-bold mt-1">{totalFuncionarios}</p>
+            <div className="flex gap-3 mt-2 text-xs text-violet-200">
+              <span>{contagemPorStatus.ativos} ativos</span>
+              <span>{contagemPorStatus.inativos} inativos</span>
+              <span>{contagemPorStatus.afastados} afastados</span>
+            </div>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200">
             <p className="text-slate-500 text-sm font-medium">Folha Salarial</p>
@@ -156,6 +200,26 @@ export default function FuncionariosPage() {
             <p className="text-slate-500 text-sm font-medium">Total Geral</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{formatarMoeda(totalSalarios + totalOutrosProventos)}</p>
           </div>
+        </div>
+
+        {/* Filtro de Status */}
+        <div className="flex gap-2 mb-4">
+          {OPCOES_STATUS.map((opcao) => (
+            <button
+              key={opcao.value}
+              onClick={() => setFiltroStatus(opcao.value)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                filtroStatus === opcao.value
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {opcao.label}
+              {opcao.value === 'ativo' && ` (${contagemPorStatus.ativos})`}
+              {opcao.value === 'inativo' && ` (${contagemPorStatus.inativos})`}
+              {opcao.value === 'afastado' && ` (${contagemPorStatus.afastados})`}
+            </button>
+          ))}
         </div>
 
         {/* Barra de Busca e Filtros */}
@@ -268,11 +332,11 @@ export default function FuncionariosPage() {
                     <th className="text-left p-4">Funcionário</th>
                     <th className="text-left p-4">Empresa</th>
                     <th className="text-left p-4">Cargo / Setor</th>
-                    <th className="text-center p-4">Idade</th>
+                    <th className="text-center p-4">Status</th>
                     <th className="text-center p-4">Tempo Empresa</th>
                     <th className="text-right p-4">Salário</th>
                     <th className="text-right p-4">Outros</th>
-                    <th className="text-center p-4 w-[100px]">Ações</th>
+                    <th className="text-center p-4 w-[120px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -280,9 +344,13 @@ export default function FuncionariosPage() {
                     const idade = calcularIdade(funcionario.nascimento)
                     const proximoAniversario = calcularProximoAniversario(funcionario.nascimento)
                     const aniversarioEmpresa = calcularAniversarioEmpresa(funcionario.admissao)
+                    const isInativo = funcionario.status === 'inativo'
                     
                     return (
-                      <tr key={funcionario.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <tr 
+                        key={funcionario.id} 
+                        className={`border-b border-slate-100 hover:bg-slate-50 ${isInativo ? 'opacity-60' : ''}`}
+                      >
                         <td className="p-4">
                           <div>
                             <p className="font-medium text-slate-800">{funcionario.nome_completo}</p>
@@ -290,7 +358,10 @@ export default function FuncionariosPage() {
                               {funcionario.matricula && (
                                 <span className="text-xs text-slate-500">Mat: {funcionario.matricula}</span>
                               )}
-                              {proximoAniversario && proximoAniversario.diasFaltando <= 30 && (
+                              {idade !== null && (
+                                <span className="text-xs text-slate-400">{idade} anos</span>
+                              )}
+                              {proximoAniversario && proximoAniversario.diasFaltando <= 30 && !isInativo && (
                                 <span className="flex items-center gap-1 text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
                                   <Cake className="w-3 h-3" />
                                   {proximoAniversario.diasFaltando === 0 ? 'Hoje!' : `${proximoAniversario.diasFaltando}d`}
@@ -305,15 +376,14 @@ export default function FuncionariosPage() {
                             <p className="text-slate-700 text-sm">{funcionario.cargo?.nome || '-'}</p>
                             <p className="text-xs text-slate-400">{funcionario.setor?.nome || '-'}</p>
                           </div>
+                          
                         </td>
                         <td className="p-4 text-center">
-                          {idade !== null ? (
-                            <div>
-                              <p className="font-medium text-slate-700">{idade} anos</p>
-                              <p className="text-xs text-slate-400">{formatarData(funcionario.nascimento)}</p>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">-</span>
+                          <BadgeStatus status={funcionario.status} />
+                          {isInativo && funcionario.data_desligamento && (
+                            <p className="text-xs text-slate-400 mt-1">
+                              {formatarData(funcionario.data_desligamento)}
+                            </p>
                           )}
                         </td>
                         <td className="p-4 text-center">
@@ -321,7 +391,7 @@ export default function FuncionariosPage() {
                             <p className="font-medium text-slate-700">{calcularTempoEmpresa(funcionario.admissao)}</p>
                             <div className="flex items-center justify-center gap-1 mt-1">
                               <p className="text-xs text-slate-400">{formatarData(funcionario.admissao)}</p>
-                              {aniversarioEmpresa && aniversarioEmpresa.diasFaltando <= 30 && (
+                              {aniversarioEmpresa && aniversarioEmpresa.diasFaltando <= 30 && !isInativo && (
                                 <span className="flex items-center gap-1 text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
                                   <Gift className="w-3 h-3" />
                                   {aniversarioEmpresa.anosCompletando}a
@@ -340,7 +410,8 @@ export default function FuncionariosPage() {
                           }
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1">
+                            {/* Editar */}
                             <button
                               onClick={() => abrirModalEditarComReset(funcionario)}
                               className="p-2 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
@@ -348,6 +419,30 @@ export default function FuncionariosPage() {
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
+
+                            {/* Demitir (só se ativo) */}
+                            {funcionario.status === 'ativo' && (
+                              <button
+                                onClick={() => abrirModalDemissao(funcionario)}
+                                className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Demitir"
+                              >
+                                <UserX className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Reativar (só se inativo) */}
+                            {funcionario.status === 'inativo' && funcionario.id && (
+                              <button
+                                onClick={() => setConfirmReativar(funcionario.id!)}
+                                className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="Reativar"
+                              >
+                                <UserCheck className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Excluir */}
                             <button
                               onClick={() => funcionario.id && setConfirmExcluir(funcionario.id)}
                               className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -417,7 +512,19 @@ export default function FuncionariosPage() {
                 placeholder="Número de matrícula"
               />
             </div>
-
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                CPF
+              </label>
+              <input
+                type="text"
+                value={funcionarioEditando?.cpf || ''}
+                onChange={(e) => handleChange('cpf', handleCpfInput(e.target.value) || null)}
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
+                placeholder="000.000.000-00"
+                maxLength={14}
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Data de Nascimento
@@ -441,7 +548,23 @@ export default function FuncionariosPage() {
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
               />
             </div>
-
+{/* Período de Experiência */}
+<div className="md:col-span-2">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Período de Experiência
+    <span className="text-xs text-slate-400 ml-1">(90 dias - CLT Art. 445)</span>
+  </label>
+  <select
+    value={funcionarioEditando?.periodo_experiencia || ''}
+    onChange={(e) => handleChange('periodo_experiencia', e.target.value || null)}
+    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none bg-white"
+  >
+    <option value="">Não definido</option>
+    <option value="45+45">45 + 45 dias</option>
+    <option value="30+60">30 + 60 dias</option>
+    <option value="60+30">60 + 30 dias</option>
+  </select>
+</div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Cargo
@@ -563,7 +686,19 @@ export default function FuncionariosPage() {
         </div>
       </Modal>
 
-      {/* Diálogo de Confirmação */}
+      {/* Modal de Demissão */}
+      {funcionarioDemitindo && (
+        <ModalDemissao
+          funcionario={funcionarioDemitindo}
+          tiposDemissao={tiposDemissao}
+          aberto={modalDemissaoAberto}
+          salvando={salvando}
+          onFechar={fecharModalDemissao}
+          onConfirmar={confirmarDemissao}
+        />
+      )}
+
+      {/* Diálogo de Confirmação - Excluir */}
       <ConfirmDialog
         aberto={!!confirmExcluir}
         titulo="Excluir Funcionário"
@@ -572,6 +707,17 @@ export default function FuncionariosPage() {
         onCancelar={() => setConfirmExcluir(null)}
         labelConfirmar="Excluir"
         tipo="perigo"
+      />
+
+      {/* Diálogo de Confirmação - Reativar */}
+      <ConfirmDialog
+        aberto={!!confirmReativar}
+        titulo="Reativar Funcionário"
+        mensagem="Tem certeza que deseja reativar este funcionário? Ele voltará a aparecer nos cálculos de custo."
+        onConfirmar={handleConfirmarReativacao}
+        onCancelar={() => setConfirmReativar(null)}
+        labelConfirmar="Reativar"
+        tipo="sucesso"
       />
     </div>
   )

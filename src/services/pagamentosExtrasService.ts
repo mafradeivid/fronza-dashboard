@@ -23,8 +23,9 @@ export async function listarPagamentosExtras(filtros?: {
         id,
         nome_completo,
         matricula,
+        cpf,
         empresa_id,
-        empresa:empresas (id, razao_social),
+        empresa:empresas (id, razao_social, cnpj, inscricao_estadual),
         cargo:cargos (id, nome),
         setor:setores (id, nome)
       )
@@ -75,7 +76,8 @@ export async function buscarPagamentoExtra(id: number): Promise<PagamentoExtra |
         id,
         nome_completo,
         matricula,
-        empresa:empresas (id, razao_social)
+        cpf,
+        empresa:empresas (id, razao_social, cnpj, inscricao_estadual)
       )
     `)
     .eq('id', id)
@@ -99,6 +101,7 @@ export async function criarPagamentoExtra(pagamento: Omit<PagamentoExtra, 'id' |
       competencia_mes: pagamento.competencia_mes,
       competencia_ano: pagamento.competencia_ano,
       data_pagamento: pagamento.data_pagamento,
+      quantidade_horas: pagamento.quantidade_horas,
     })
     .select()
     .single()
@@ -121,6 +124,7 @@ export async function atualizarPagamentoExtra(id: number, pagamento: Partial<Pag
       competencia_mes: pagamento.competencia_mes,
       competencia_ano: pagamento.competencia_ano,
       data_pagamento: pagamento.data_pagamento,
+      quantidade_horas: pagamento.quantidade_horas,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -173,7 +177,7 @@ export function gerarResumoCompetencia(pagamentos: PagamentoExtra[]): ResumoComp
     horas_extras: 'Horas Extras',
     bonificacao: 'Bonificação',
     adiantamento: 'Adiantamento',
-    ajuda_custo: 'Ajuda de Custo',
+    ajuda_custo: 'Avulsos',
     comissao: 'Comissão',
     outros: 'Outros',
   }

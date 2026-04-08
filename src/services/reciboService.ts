@@ -1,6 +1,13 @@
 import jsPDF from 'jspdf'
-import { PagamentoExtra, getLabelTipoPagamento } from '@/types/pessoas'
+import { PagamentoExtra, getLabelTipoPagamento, formatarQuantidadeHoras } from '@/types/pessoas'
 import { formatarMoeda } from '@/utils/formatters'
+
+// Interface para empresa pagadora customizada
+export interface EmpresaPagadora {
+  razao_social: string
+  cnpj: string
+  inscricao_estadual?: string | null
+}
 
 // Converter número para extenso
 function numeroParaExtenso(valor: number): string {
@@ -108,6 +115,14 @@ function getNomeMes(mes: number): string {
   return meses[mes] || ''
 }
 
+// Formatar CPF
+function formatarCPF(cpf: string | null | undefined): string {
+  if (!cpf) return '---'
+  const numeros = cpf.replace(/\D/g, '')
+  if (numeros.length !== 11) return cpf
+  return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
 // Desenhar linha horizontal
 function linha(doc: jsPDF, x1: number, y: number, x2: number, cor: number[] = [220, 220, 220]) {
   doc.setDrawColor(cor[0], cor[1], cor[2])
@@ -115,19 +130,20 @@ function linha(doc: jsPDF, x1: number, y: number, x2: number, cor: number[] = [2
   doc.line(x1, y, x2, y)
 }
 
-// NOVO LAYOUT DO RECIBO
+// LAYOUT DO RECIBO
 function desenharRecibo(
   doc: jsPDF,
   pagamento: PagamentoExtra,
   posY: number,
-  numero: number
+  numero: number,
+  empresaPagadora?: EmpresaPagadora | null
 ): void {
   const margem = 10
   const largura = 190
-  const alturaRecibo = 90
+  const alturaRecibo = 95
   const paddingX = 8
 
-  const empresa = pagamento.funcionario?.empresa
+  const empresa = empresaPagadora || pagamento.funcionario?.empresa
   const funcionario = pagamento.funcionario
 
   // ===== BORDA EXTERNA =====
@@ -135,19 +151,19 @@ function desenharRecibo(
   doc.setLineWidth(0.4)
   doc.rect(margem, posY, largura, alturaRecibo)
 
-  // ===== HEADER (sutil) =====
-  doc.setFillColor(248, 250, 252) // slate-50
+  // ===== HEADER =====
+  doc.setFillColor(248, 250, 252)
   doc.rect(margem, posY, largura, 10, 'F')
   linha(doc, margem, posY + 10, margem + largura)
 
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(51, 65, 85) // slate-700
+  doc.setTextColor(51, 65, 85)
   doc.text('RECIBO DE PAGAMENTO', margem + paddingX, posY + 7)
 
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(100, 116, 139) // slate-500
+  doc.setTextColor(100, 116, 139)
   doc.text(`Nº ${String(numero).padStart(4, '0')}/${pagamento.competencia_ano}`, margem + largura - paddingX, posY + 7, { align: 'right' })
 
   // ===== EMPRESA PAGADORA =====
@@ -155,13 +171,13 @@ function desenharRecibo(
 
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(148, 163, 184) // slate-400
+  doc.setTextColor(148, 163, 184)
   doc.text('EMPRESA PAGADORA', margem + paddingX, y)
 
   y += 5
   doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(30, 41, 59) // slate-800
+  doc.setTextColor(30, 41, 59)
   doc.text(empresa?.razao_social || '-', margem + paddingX, y)
 
   y += 4
@@ -169,7 +185,6 @@ function desenharRecibo(
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 116, 139)
   
-  // CNPJ e IE na mesma linha
   const cnpj = empresa?.cnpj || '00.000.000/0000-00'
   const ie = empresa?.inscricao_estadual
   let documentos = `CNPJ: ${cnpj}`
@@ -178,26 +193,25 @@ function desenharRecibo(
   }
   doc.text(documentos, margem + paddingX, y)
 
-  // ===== VALOR (área destacada) =====
+  // ===== VALOR =====
   y += 5
-  doc.setFillColor(255, 251, 235) // amber-50
-  doc.setDrawColor(251, 191, 36) // amber-400
+  doc.setFillColor(255, 251, 235)
+  doc.setDrawColor(251, 191, 36)
   doc.setLineWidth(0.5)
   doc.rect(margem + paddingX - 3, y, largura - (paddingX * 2) + 6, 14, 'FD')
 
   y += 5
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(146, 64, 14) // amber-800
+  doc.setTextColor(146, 64, 14)
   doc.text('VALOR RECEBIDO', margem + paddingX, y)
 
   y += 6
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(180, 83, 9) // amber-700
+  doc.setTextColor(180, 83, 9)
   doc.text(formatarMoeda(Number(pagamento.valor)), margem + paddingX, y)
 
-  // Extenso (ao lado do valor)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(146, 64, 14)
@@ -208,14 +222,22 @@ function desenharRecibo(
   y += 8
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105) // slate-600
+  doc.setTextColor(71, 85, 105)
   doc.text('Referente a:', margem + paddingX, y)
 
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(30, 41, 59)
   const tipoLabel = getLabelTipoPagamento(pagamento.tipo)
   const competencia = `${getNomeMes(pagamento.competencia_mes)}/${pagamento.competencia_ano}`
-  doc.text(`${tipoLabel} - ${competencia}`, margem + paddingX + 22, y)
+  
+  let referencia = `${tipoLabel}`
+  if (pagamento.tipo === 'horas_extras' && pagamento.quantidade_horas) {
+    const horasFormatadas = formatarQuantidadeHoras(pagamento.quantidade_horas)
+    referencia += ` (${horasFormatadas})`
+  }
+  referencia += ` - ${competencia}`
+  
+  doc.text(referencia, margem + paddingX + 22, y)
 
   // ===== SEPARADOR =====
   y += 5
@@ -234,34 +256,38 @@ function desenharRecibo(
   doc.setTextColor(30, 41, 59)
   doc.text(funcionario?.nome_completo || '-', margem + paddingX, y)
 
+  y += 4
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100, 116, 139)
+  doc.text(`CPF: ${formatarCPF(funcionario?.cpf)}`, margem + paddingX, y)
+
   // ===== DATA =====
-  y += 7
+  y += 6
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 116, 139)
   doc.text(dataExtenso(pagamento.data_pagamento), margem + paddingX, y)
 
   // ===== ASSINATURAS =====
-  y += 8  // Era 12, agora sobe um pouco
+  y += 8
   const col1 = margem + 50
   const col2 = margem + largura - 50
   const linhaLargura = 55
 
-   // Assinatura Beneficiário
   doc.setDrawColor(180, 180, 180)
   doc.setLineWidth(0.3)
   doc.line(col1 - linhaLargura / 2, y, col1 + linhaLargura / 2, y)
 
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(71, 85, 105) // slate-600 (mais escuro para legibilidade)
+  doc.setTextColor(71, 85, 105)
   const nomeBeneficiario = funcionario?.nome_completo || 'Beneficiário'
   doc.text(nomeBeneficiario, col1, y + 3, { align: 'center' })
   doc.setFontSize(6)
   doc.setTextColor(148, 163, 184)
   doc.text('Assinatura do Beneficiário', col1, y + 6, { align: 'center' })
 
-  // Assinatura Empresa
   doc.line(col2 - linhaLargura / 2, y, col2 + linhaLargura / 2, y)
 
   doc.setFontSize(7)
@@ -286,65 +312,87 @@ function desenharRecibo(
   }
 }
 
-// Gerar PDF com um recibo (individual)
-export function gerarReciboIndividual(pagamento: PagamentoExtra): void {
+// Gerar PDF individual
+export function gerarReciboIndividual(
+  pagamento: PagamentoExtra,
+  empresaPagadora?: EmpresaPagadora | null
+): void {
   const doc = new jsPDF('p', 'mm', 'a4')
 
-  desenharRecibo(doc, pagamento, 10, 1)
+  desenharRecibo(doc, pagamento, 10, 1, empresaPagadora)
 
   const nomeArquivo = `recibo_${pagamento.funcionario?.nome_completo?.replace(/\s+/g, '_') || 'funcionario'}_${pagamento.competencia_mes}_${pagamento.competencia_ano}.pdf`
   doc.save(nomeArquivo)
 }
 
-// Gerar PDF em lote (3 por página, agrupado por empresa)
-export function gerarRecibosLote(pagamentos: PagamentoExtra[]): void {
+// Gerar PDF em lote
+export function gerarRecibosLote(
+  pagamentos: PagamentoExtra[],
+  empresaPagadora?: EmpresaPagadora | null
+): void {
   if (pagamentos.length === 0) return
 
   const doc = new jsPDF('p', 'mm', 'a4')
 
-  // Agrupar por empresa
-  const porEmpresa = new Map<number, PagamentoExtra[]>()
-
-  pagamentos.forEach(p => {
-    const empresaId = p.funcionario?.empresa_id || 0
-    if (!porEmpresa.has(empresaId)) {
-      porEmpresa.set(empresaId, [])
-    }
-    porEmpresa.get(empresaId)!.push(p)
-  })
-
-  let primeiraPagina = true
-  let numeroRecibo = 1
-
-  const empresasArray = Array.from(porEmpresa.entries())
-
-  empresasArray.forEach(([, pagamentosEmpresa], empresaIndex) => {
-    // Ordenar por nome do funcionário
-    pagamentosEmpresa.sort((a, b) =>
+  if (empresaPagadora) {
+    let numeroRecibo = 1
+    
+    const pagamentosOrdenados = [...pagamentos].sort((a, b) =>
       (a.funcionario?.nome_completo || '').localeCompare(b.funcionario?.nome_completo || '')
     )
 
-    // 3 recibos por página (90mm + 8mm espaço = 98mm por recibo)
-    for (let i = 0; i < pagamentosEmpresa.length; i++) {
+    for (let i = 0; i < pagamentosOrdenados.length; i++) {
       const posicaoNaPagina = i % 3
 
-      if (posicaoNaPagina === 0 && (i > 0 || !primeiraPagina)) {
+      if (posicaoNaPagina === 0 && i > 0) {
         doc.addPage()
       }
 
-      primeiraPagina = false
-
-      const posY = 5 + (posicaoNaPagina * 98)
-
-      desenharRecibo(doc, pagamentosEmpresa[i], posY, numeroRecibo)
+      const posY = 5 + (posicaoNaPagina * 100)
+      desenharRecibo(doc, pagamentosOrdenados[i], posY, numeroRecibo, empresaPagadora)
       numeroRecibo++
     }
+  } else {
+    const porEmpresa = new Map<number, PagamentoExtra[]>()
 
-    // Nova empresa = nova página
-    if (empresaIndex < empresasArray.length - 1) {
-      doc.addPage()
-    }
-  })
+    pagamentos.forEach(p => {
+      const empresaId = p.funcionario?.empresa_id || 0
+      if (!porEmpresa.has(empresaId)) {
+        porEmpresa.set(empresaId, [])
+      }
+      porEmpresa.get(empresaId)!.push(p)
+    })
+
+    let primeiraPagina = true
+    let numeroRecibo = 1
+
+    const empresasArray = Array.from(porEmpresa.entries())
+
+    empresasArray.forEach(([, pagamentosEmpresa], empresaIndex) => {
+      pagamentosEmpresa.sort((a, b) =>
+        (a.funcionario?.nome_completo || '').localeCompare(b.funcionario?.nome_completo || '')
+      )
+
+      for (let i = 0; i < pagamentosEmpresa.length; i++) {
+        const posicaoNaPagina = i % 3
+
+        if (posicaoNaPagina === 0 && (i > 0 || !primeiraPagina)) {
+          doc.addPage()
+        }
+
+        primeiraPagina = false
+
+        const posY = 5 + (posicaoNaPagina * 100)
+
+        desenharRecibo(doc, pagamentosEmpresa[i], posY, numeroRecibo)
+        numeroRecibo++
+      }
+
+      if (empresaIndex < empresasArray.length - 1) {
+        doc.addPage()
+      }
+    })
+  }
 
   const primeiroAno = pagamentos[0]?.competencia_ano || new Date().getFullYear()
   const primeiroMes = pagamentos[0]?.competencia_mes || (new Date().getMonth() + 1)

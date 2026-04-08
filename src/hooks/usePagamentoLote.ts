@@ -5,6 +5,7 @@ import { criarPagamentoExtra } from '@/services/pagamentosExtrasService'
 export interface PagamentoLoteItem {
   funcionario: Funcionario
   valor: number
+  quantidadeHoras: string
   selecionado: boolean
 }
 
@@ -32,6 +33,7 @@ export function usePagamentoLote({
   const [tipo, setTipo] = useState<TipoPagamentoExtra>('outros')
   const [descricao, setDescricao] = useState('')
   const [dataPagamento, setDataPagamento] = useState('')
+  const [quantidadeHorasGlobal, setQuantidadeHorasGlobal] = useState('')
 
   // Filtros do modal
   const [filtroEmpresa, setFiltroEmpresa] = useState<number | null>(null)
@@ -48,12 +50,14 @@ export function usePagamentoLote({
     const novosItens: PagamentoLoteItem[] = funcionarios.map(f => ({
       funcionario: f,
       valor: 0,
+      quantidadeHoras: '',
       selecionado: false,
     }))
     setItens(novosItens)
     setTipo('outros')
     setDescricao('')
     setDataPagamento('')
+    setQuantidadeHorasGlobal('')
     setFiltroEmpresa(null)
     setBusca('')
     setValoresTexto(new Map())
@@ -108,7 +112,7 @@ export function usePagamentoLote({
 
   // Deselecionar todos
   const deselecionarTodos = useCallback(() => {
-    setItens(prev => prev.map(item => ({ ...item, selecionado: false, valor: 0 })))
+    setItens(prev => prev.map(item => ({ ...item, selecionado: false, valor: 0, quantidadeHoras: '' })))
     setValoresTexto(new Map())
   }, [])
 
@@ -120,6 +124,15 @@ export function usePagamentoLote({
         : item
     ))
     setValoresTexto(prev => new Map(prev).set(funcionarioId, valorTexto))
+  }, [])
+
+  // Atualizar quantidade de horas individual
+  const atualizarHoras = useCallback((funcionarioId: number, horas: string) => {
+    setItens(prev => prev.map(item =>
+      item.funcionario.id === funcionarioId
+        ? { ...item, quantidadeHoras: horas }
+        : item
+    ))
   }, [])
 
   // Aplicar valor para todos selecionados
@@ -137,6 +150,13 @@ export function usePagamentoLote({
       return novos
     })
   }, [itens])
+
+  // Aplicar horas globais para todos selecionados
+  const aplicarHorasParaTodos = useCallback((horas: string) => {
+    setItens(prev => prev.map(item =>
+      item.selecionado ? { ...item, quantidadeHoras: horas } : item
+    ))
+  }, [])
 
   // Itens selecionados com valor
   const itensSelecionadosComValor = useMemo(() => {
@@ -158,6 +178,16 @@ export function usePagamentoLote({
     return valoresTexto.get(funcionarioId) || ''
   }, [valoresTexto])
 
+  // Handler para mudança de tipo (limpa horas se não for horas_extras)
+  const handleTipoChange = useCallback((novoTipo: TipoPagamentoExtra) => {
+    setTipo(novoTipo)
+    if (novoTipo !== 'horas_extras') {
+      setQuantidadeHorasGlobal('')
+      // Limpa horas de todos os itens
+      setItens(prev => prev.map(item => ({ ...item, quantidadeHoras: '' })))
+    }
+  }, [])
+
   // Salvar lote
   const salvar = useCallback(async (): Promise<boolean> => {
     if (itensSelecionadosComValor.length === 0) {
@@ -178,6 +208,7 @@ export function usePagamentoLote({
           competencia_mes: competenciaMes,
           competencia_ano: competenciaAno,
           data_pagamento: dataPagamento || null,
+          quantidade_horas: tipo === 'horas_extras' && item.quantidadeHoras ? item.quantidadeHoras : null,
         })
       )
 
@@ -207,9 +238,12 @@ export function usePagamentoLote({
     tipo,
     descricao,
     dataPagamento,
-    setTipo,
+    quantidadeHoras: quantidadeHorasGlobal,
+    setTipo: handleTipoChange,
     setDescricao,
     setDataPagamento,
+    setQuantidadeHoras: setQuantidadeHorasGlobal,
+    aplicarHorasParaTodos,
 
     // Filtros
     filtroEmpresa,
@@ -227,6 +261,7 @@ export function usePagamentoLote({
     selecionarTodos,
     deselecionarTodos,
     atualizarValor,
+    atualizarHoras,
     aplicarValorParaTodos,
 
     // Resumo
